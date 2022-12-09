@@ -60,7 +60,7 @@ static const uint8_t  recoding_bit_length = 16;
 int32_t recoding_size;
 int buff_size;
 String ext;
-const int wd_time = (recording_time + 10) * 1000; // Watchdog time in ms. if the main loop took more than wd_time, the watchdog will reset the process.
+const int wd_time = 20000; // Watchdog time in ms. if the main loop took more than wd_time, the watchdog will reset the process.
 
 SDClass theSD;
 AudioClass *theAudio;
@@ -225,6 +225,7 @@ bool rec(String file_name)
       exit_recording();
       return false;
     }
+    Watchdog.kick();
   }
 
   /* Stop recording
@@ -265,7 +266,11 @@ void loop()
   if (!rec_ok)
   {
     Serial.println("Failed recording! Restarting...");
-    delay(wd_time);
-  }  
+    while (true)
+    {
+      delay(1000);
+      Serial.println(String("Watchdog timer ramains..." + (Watchdog.timeleft()/1000) + String("sec")));
+    }
+  }
   Watchdog.kick();
 }
