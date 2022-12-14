@@ -10,19 +10,20 @@
 Name: camera.ino
 Author: R. Okamoto
 Started: 2022/12/9
-Purpose: To capture images with a set of camera parameters
+Purpose: To capture images with a set of parameters
 ---------------------
 Description:
 This program is for make your SonySpresense a camera that is fully customizable.
-You can set capturing parameters using cameraParams structure.
+You can set image capturing parameters using cameraParams structure.
 You can also specify the number of pictures using TOTAL_PICTURE_COUNT.
 The obtained images will be named as IMG_{number}.jpg.
+I recommend you to set the memory size (Tools->Memory in ArduinoIDE) larger than 1024 kB.
 */
 
 typedef struct { 
   String filename;
-  int h;
-  int v;
+  int h; // Image width
+  int v; // Image height
   int jpg_buf_devisor; // JPEG buffer devisor, default = 7 
   int jpg_quality; // 0 ~ 100, default = 80
   int hdr; // HDR mode. CAM_HDR_MODE_ON or CAM_HDR_MODE_OFF
@@ -30,7 +31,7 @@ typedef struct {
   bool autoexp; // Auto Exposure?
   bool autoiso; // Auto ISO?
   CAM_WHITE_BALANCE wb; // Auto white balance mode. CAM_WHITE_BALANCE_{AUTO/INCANDESCENT/FLUORESCENT/DAYLIGHT/FLASH/CLOUDY/SHADE}
-  int exp_time; // Exposure time, 100 u sec units. The max value is 2740 (NO HDR) and 317(HDR)
+  int exp_time; // Exposure time, 30 means 1/30 sec.
   int iso; // ISO sensitivity
 } cameraParams;
 
@@ -41,12 +42,12 @@ cameraParams p {
   CAM_IMGSIZE_QUADVGA_V,
   5,
   80,
-  CAM_HDR_MODE_OFF,
+  CAM_HDR_MODE_ON,
   true,
   false,
-  false,
+  true,
   CAM_WHITE_BALANCE_DAYLIGHT,
-  50,
+  200,
   100
 };
 
@@ -98,45 +99,10 @@ void printError(enum CamErr err)
     }
 }
 
-/**
- * Callback from Camera library when video frame is captured.
- */
-
-void CamCB(CamImage img)
-{
-  /* Check the img instance is available or not. */
-
-  if (img.isAvailable())
-    {
-
-      /* If you want RGB565 data, convert image data format to RGB565 */
-
-      img.convertPixFormat(CAM_IMAGE_PIX_FMT_RGB565);
-
-      /* You can use image data directly by using getImgSize() and getImgBuff().
-       * for displaying image to a display, etc. */
-
-      Serial.print("Image data size = ");
-      Serial.print(img.getImgSize(), DEC);
-      Serial.print(" , ");
-
-      Serial.print("buff addr = ");
-      Serial.print((unsigned long)img.getImgBuff(), HEX);
-      Serial.println("");
-    }
-  else
-    {
-      Serial.println("Failed to get video stream image");
-    }
-}
-
 // Initializing the camera
 void init_camera(cameraParams p)
 {
   CamErr err;
-
-  /* begin() without parameters means that
-   * number of buffers = 1, 30FPS, QVGA, YUV 4:2:2 format */
 
   Serial.println("Prepare camera");
   err = theCamera.begin(0); // begin(0) stands for no preview
@@ -144,20 +110,6 @@ void init_camera(cameraParams p)
     {
       printError(err);
     }
-
-  /* Start video stream.
-   * If received video stream data from camera device,
-   *  camera library call CamCB.
-   */
-  
-  /*
-  Serial.println("Start streaming");
-  err = theCamera.startStreaming(true, CamCB);
-  if (err != CAM_ERR_SUCCESS)
-    {
-      printError(err);
-    }
-  */
 
   Serial.println("Set ISO Sensitivity");
   err = theCamera.setAutoISOSensitivity(p.autoiso);
@@ -181,7 +133,8 @@ void init_camera(cameraParams p)
   }
   if (!p.autoexp)
   {
-    err = theCamera.setAbsoluteExposure(p.exp_time);
+    int exp = int(1 / float(p.exp_time) * 10000);
+    err = theCamera.setAbsoluteExposure(exp);
     if (err != CAM_ERR_SUCCESS)
     {
       printError(err);
@@ -249,7 +202,7 @@ void take_a_picture(cameraParams p)
   if (img.isAvailable())
     {    
       Serial.println(String("ISO: ") + theCamera.getISOSensitivity());
-      Serial.println(String("Exposure: ") + theCamera.getAbsoluteExposure());
+      Serial.println(String("Exposure: 1/") + (1 / (float(theCamera.getAbsoluteExposure()) / 10000)));
       Serial.println(String("HDR mode: ") + theCamera.getHDR());
       Serial.print("Save taken picture as ");
       Serial.print(p.filename);
